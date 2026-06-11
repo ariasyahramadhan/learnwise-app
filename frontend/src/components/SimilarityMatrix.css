@@ -1,0 +1,60 @@
+.matrix-scroll {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+}
+
+.matrix-table {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  min-width: 100%;
+}
+
+.matrix-corner { width: 120px; }
+
+.matrix-col-header {
+  padding: 0.5rem 0.6rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  border-bottom: 2px solid var(--border);
+  min-width: 80px;
+}
+
+.col-name {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.matrix-row-header {
+  padding: 0.5rem 0.75rem;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-right: 2px solid var(--border);
+}
+
+.matrix-cell {
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+  transition: filter 0.15s;
+  border: 1px solid rgba(0,0,0,0.04);
+  min-width: 72px;
+}
+
+.matrix-cell:hover { filter: brightness(0.9); cursor: default; }
+
+.cell-val {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+}
