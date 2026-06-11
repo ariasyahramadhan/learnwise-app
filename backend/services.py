@@ -680,3 +680,137 @@ class PlagiarismService:
             {"x": float(coords[i][0]), "y": float(coords[i][1])}
             for i in range(n)
         ]
+
+
+class EssayScoringService:
+    """
+    Evaluasi nilai esai berdasarkan kunci jawaban (reference answer)
+    menggunakan model Gradient Boosting Regressor dan StandardScaler.
+    """
+
+    def __init__(self, sbert_model):
+        self.sbert_model = sbert_model
+        self._model = None
+        self._scaler = None
+        self._loaded = False
+        self._load_error = None
+        self._try_load()
+
+    def _try_load(self):
+        """Muat model dan scaler dari disk."""
+        try:
+            import joblib
+            import os
+
+            model_path = os.path.join("model_artifacts", "essay_scoring", "scoring_model.pkl")
+            scaler_path = os.path.join("model_artifacts", "essay_scoring", "scaler.pkl")
+
+            # Fallback path jika dijalankan dari root directory proyek
+            if not os.path.exists(model_path) or not os.path.exists(scaler_path):
+                alt_model_path = os.path.join("backend", "model_artifacts", "essay_scoring", "scoring_model.pkl")
+                alt_scaler_path = os.path.join("backend", "model_artifacts", "essay_scoring", "scaler.pkl")
+                if os.path.exists(alt_model_path) and os.path.exists(alt_scaler_path):
+                    model_path = alt_model_path
+                    scaler_path = alt_scaler_path
+                else:
+                    self._load_error = (
+                        "File model essay_scoring tidak ditemukan di model_artifacts/essay_scoring/."
+                    )
+                    print(f"[EssayScoring] WARNING: {self._load_error}")
+                    return
+
+            self._model = joblib.load(model_path)
+            self._scaler = joblib.load(scaler_path)
+            self._loaded = True
+            print("[EssayScoring] Model and Scaler loaded successfully!")
+
+        except Exception as e:
+            self._load_error = str(e)
+            print(f"[EssayScoring] ERROR saat memuat model: {e}")
+
+    @property
+    def is_available(self) -> bool:
+        return self._loaded
+
+    def score_essay(self, essay: str, reference: str) -> dict:
+        """
+        Hitung skor esai siswa (0-100) berdasarkan kunci jawaban.
+        """
+        if not self._loaded:
+            raise ValueError(f"Model Penilaian Esai tidak tersedia: {self._load_error}")
+
+        essay_clean = essay.strip()
+        ref_clean = reference.strip()
+
+        # 1. is_blank
+        is_blank = 1.0 if len(essay_clean) == 0 else 0.0
+
+        # Ekstraksi kata
+        words_essay = re.findall(r'\b\w+\b', essay_clean.lower())
+        words_ref = re.findall(r'\b\w+\b', ref_clean.lower())
+
+        len_essay = len(words_essay)
+        len_ref = len(words_ref)
+
+        # 2. length_ratio
+        length_ratio = len_essay / max(len_ref, 1)
+
+        # 3. is_short (jika lebih pendek dari 50% kunci jawaban atau di bawah 10 kata)
+        is_short = 1.0 if (length_ratio < 0.5 or len_essay < 10) and not is_blank else 0.0
+
+        # 4. sequence_similarity (difflib matcher ratio)
+        import difflib
+        sequence_sim = difflib.SequenceMatcher(None, essay_clean.lower(), ref_clean.lower()).ratio()
+
+        # 5. keyword_overlap (mengabaikan stopwords umum bahasa Indonesia)
+        stopwords_id = {
+            'yang', 'dan', 'di', 'ke', 'dari', 'untuk', 'dengan', 'ini', 'itu', 'adalah',
+            'yaitu', 'yakni', 'sebagai', 'oleh', 'pada', 'atau', 'juga', 'dalam', 'akan'
+        }
+        set_essay = set(words_essay) - stopwords_id
+        set_ref = set(words_ref) - stopwords_id
+
+        if not set_ref:
+            keyword_overlap = 0.0
+        else:
+            keyword_overlap = len(set_essay & set_ref) / len(set_ref)
+
+        # 6. cosine_similarity (SBERT)
+        if is_blank:
+            cos_sim = 0.0
+        else:
+            try:
+                embeddings = self.sbert_model.encode([essay_clean, ref_clean], convert_to_numpy=True)
+                cos_sim = float(cosine_similarity([embeddings[0]], [embeddings[1]])[0][0])
+            except Exception as e:
+                print(f"[EssayScoring] Error saat menghitung cosine similarity: {e}")
+                cos_sim = 0.0
+
+        # Urutan fitur sesuai meta.json:
+        # [cosine_similarity, keyword_overlap, sequence_similarity, length_ratio, is_short, is_blank]
+        features = [cos_sim, keyword_overlap, sequence_sim, length_ratio, is_short, is_blank]
+
+        # Skala fitur menggunakan StandardScaler
+        X = np.array([features], dtype=np.float32)
+        X_scaled = self._scaler.transform(X)
+
+        # Prediksi skor kontinu
+        raw_score = float(self._model.predict(X_scaled)[0])
+
+        # Clip skor ke [0.0, 1.0] dan konversi ke persen (0-100)
+        final_score = round(max(0.0, min(1.0, raw_score)) * 100, 2)
+
+        return {
+            "score": final_score,
+            "features": {
+                "cosine_similarity": round(cos_sim * 100, 2),
+                "keyword_overlap": round(keyword_overlap * 100, 2),
+                "sequence_similarity": round(sequence_sim * 100, 2),
+                "length_ratio": round(length_ratio * 100, 2),
+                "is_short": bool(is_short),
+                "is_blank": bool(is_blank),
+                "word_count_student": len_essay,
+                "word_count_reference": len_ref
+            }
+        }
+

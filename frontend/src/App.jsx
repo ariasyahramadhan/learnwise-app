@@ -1,12 +1,13 @@
 import { useState } from "react";
 import UploadPage from "./pages/UploadPage";
 import ResultPage from "./pages/ResultPage";
+import EssayScoringPage from "./pages/EssayScoringPage";
 import { Search, Edit, Clipboard, GraduationCap, ArrowLeft } from "./components/Icons";
 import "./App.css";
 
 const TABS = [
   { id: "plagiarism", label: "Deteksi Plagiarisme", icon: Search },
-  { id: "grammar", label: "Scoring Essay", icon: Edit },
+  { id: "essay_scoring", label: "Scoring Essay", icon: Edit },
   { id: "summarize", label: "Pembeda Teks Antara AI / Manusia", icon: Clipboard },
 ];
 
@@ -68,6 +69,8 @@ export default function App() {
           ) : (
             <ResultPage result={result} onReset={handleReset} />
           )
+        ) : activeTab === "essay_scoring" ? (
+          <EssayScoringPage />
         ) : (
           <ComingSoon tab={TABS.find(t => t.id === activeTab)} />
         )}

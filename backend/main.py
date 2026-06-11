@@ -1,10 +1,11 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
+from pydantic import BaseModel
 import uvicorn
 import logging
 
-from services import PlagiarismService
+from services import PlagiarismService, EssayScoringService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,6 +21,13 @@ app.add_middleware(
 )
 
 plagiarism_service = PlagiarismService()
+essay_scoring_service = EssayScoringService(sbert_model=plagiarism_service.model)
+
+
+class EssayScoreRequest(BaseModel):
+    student_answer: str
+    reference_answer: str
+
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB per file
 MAX_FILES = 50
@@ -32,15 +40,43 @@ def root():
 
 @app.get("/api/model-status")
 def model_status():
-    """Cek apakah Model A dan Model B sudah tersedia."""
+    """Cek apakah Model A, Model B, dan Model Esai sudah tersedia."""
     avail_a = plagiarism_service.model_a.is_available
     avail_b = plagiarism_service.model_b.is_available
+    avail_essay = essay_scoring_service.is_available
     return {
         "model_a_available": avail_a,
         "model_b_available": avail_b,
+        "essay_model_available": avail_essay,
         "message_a": "Model A siap digunakan." if avail_a else plagiarism_service.model_a._load_error,
-        "message_b": "Model B siap digunakan." if avail_b else plagiarism_service.model_b._load_error
+        "message_b": "Model B siap digunakan." if avail_b else plagiarism_service.model_b._load_error,
+        "message_essay": "Model Penilaian Esai siap digunakan." if avail_essay else essay_scoring_service._load_error
     }
+
+
+@app.post("/api/score-essay")
+async def score_essay(request: EssayScoreRequest):
+    if not essay_scoring_service.is_available:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Model Penilaian Esai tidak tersedia: {essay_scoring_service._load_error}"
+        )
+
+    if not request.reference_answer.strip():
+        raise HTTPException(status_code=400, detail="Kunci jawaban tidak boleh kosong")
+    if not request.student_answer.strip():
+        raise HTTPException(status_code=400, detail="Jawaban siswa tidak boleh kosong")
+
+    try:
+        result = essay_scoring_service.score_essay(
+            request.student_answer,
+            request.reference_answer
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Essay scoring error: {e}")
+        raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat menilai esai: {str(e)}")
+
 
 
 @app.post("/api/analyze")

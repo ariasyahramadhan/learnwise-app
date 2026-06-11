@@ -1,0 +1,17 @@
+{
+  "sentence_transformer": "paraphrase-multilingual-MiniLM-L12-v2",
+  "ml_model": "GradientBoostingRegressor",
+  "features": [
+    "cosine_similarity",
+    "keyword_overlap",
+    "sequence_similarity",
+    "length_ratio",
+    "is_short",
+    "is_blank"
+  ],
+  "metrics": {
+    "rmse": 0.16465,
+    "mae": 0.11695,
+    "r2": 0.81689
+  }
+}
