@@ -399,6 +399,44 @@
   margin-top: 0.15rem;
 }
 
+.btn-reset-scoring {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+  border: 1.5px solid var(--primary-subtle);
+  border-radius: 99px;
+  font-family: var(--font);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 4px rgba(249, 115, 22, 0.05);
+}
+
+.btn-reset-scoring:hover {
+  background: var(--primary-dark);
+  color: var(--bg-white);
+  border-color: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
+}
+
+.btn-reset-scoring:active {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.15);
+}
+
+.btn-reset-scoring svg {
+  transition: transform 0.2s ease;
+}
+
+.btn-reset-scoring:hover svg {
+  transform: translateX(-3px);
+}
+
 /* ACCORDION STACK */
 .accordion-stack {
   display: flex;
