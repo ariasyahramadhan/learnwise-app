@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import uvicorn
 import logging
 
-from services import PlagiarismService, EssayScoringService
+from services import PlagiarismService, EssayScoringService, AIDetectionService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +22,7 @@ app.add_middleware(
 
 plagiarism_service = PlagiarismService()
 essay_scoring_service = EssayScoringService(sbert_model=plagiarism_service.model)
+ai_detection_service = AIDetectionService()
 
 
 class EssayScoreRequest(BaseModel):
@@ -41,17 +42,20 @@ def root():
 
 @app.get("/api/model-status")
 def model_status():
-    """Cek apakah Model A, Model B, dan Model Esai sudah tersedia."""
+    """Cek apakah Model A, Model B, Model Esai, dan Model Deteksi AI sudah tersedia."""
     avail_a = plagiarism_service.model_a.is_available
     avail_b = plagiarism_service.model_b.is_available
     avail_essay = essay_scoring_service.is_available
+    avail_ai = ai_detection_service.is_available
     return {
         "model_a_available": avail_a,
         "model_b_available": avail_b,
         "essay_model_available": avail_essay,
+        "ai_model_available": avail_ai,
         "message_a": "Model A siap digunakan." if avail_a else plagiarism_service.model_a._load_error,
         "message_b": "Model B siap digunakan." if avail_b else plagiarism_service.model_b._load_error,
-        "message_essay": "Model Penilaian Esai siap digunakan." if avail_essay else essay_scoring_service._load_error
+        "message_essay": "Model Penilaian Esai siap digunakan." if avail_essay else essay_scoring_service._load_error,
+        "message_ai": "Model Deteksi AI siap digunakan." if avail_ai else ai_detection_service._load_error
     }
 
 
@@ -181,6 +185,70 @@ async def parse_essay_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat mengekstrak dokumen: {str(e)}")
 
 
+@app.post("/api/detect-ai")
+async def detect_ai(
+    text: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None)
+):
+    if not ai_detection_service.is_available:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Model Deteksi Teks AI tidak tersedia: {ai_detection_service._load_error}"
+        )
+
+    # 1. Get input text
+    input_text = ""
+    if file:
+        allowed_types = [
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "text/plain"
+        ]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{file.filename}' tidak didukung. Hanya PDF, DOCX, dan TXT."
+            )
+        
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{file.filename}' melebihi ukuran maksimal {MAX_FILE_SIZE // (1024 * 1024)}MB."
+            )
+            
+        extracted_text = plagiarism_service.extractor.extract(content, file.content_type)
+        if not extracted_text or not extracted_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Dokumen tidak berisi teks yang dapat dibaca."
+            )
+        input_text = extracted_text
+    elif text:
+        input_text = text
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Harap masukkan teks atau unggah file dokumen."
+        )
+
+    # 2. Validate text length
+    if len(input_text.strip()) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Teks terlalu pendek. Harap masukkan minimal 10 karakter."
+        )
+
+    try:
+        res = ai_detection_service.detect(input_text)
+        return res
+    except Exception as e:
+        logger.error(f"AI detection error: {e}")
+        raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat mendeteksi teks AI: {str(e)}")
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+# Trigger uvicorn reload to load new matched-length model artifacts
 

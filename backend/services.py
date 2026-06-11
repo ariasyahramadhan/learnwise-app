@@ -901,3 +901,138 @@ class EssayScoringService:
         }
 
 
+class AIDetectionService:
+    """
+    Service to classify whether text is AI-generated (ChatGPT) or Human-written.
+    Uses TF-IDF Word & Char vectorizer along with stylometric features and XGBoost.
+    """
+    ARTIFACTS_PATH = "model_artifacts"
+
+    def __init__(self):
+        self._word_vec = None
+        self._char_vec = None
+        self._clf = None
+        self._config = None
+        self._loaded = False
+        self._load_error = None
+        self._try_load()
+
+    def _try_load(self):
+        try:
+            import joblib
+            import os
+
+            word_path = os.path.join(self.ARTIFACTS_PATH, "ai_detection", "ai_word_vectorizer.pkl")
+            char_path = os.path.join(self.ARTIFACTS_PATH, "ai_detection", "ai_char_vectorizer.pkl")
+            clf_path = os.path.join(self.ARTIFACTS_PATH, "ai_detection", "ai_classifier.pkl")
+            config_path = os.path.join(self.ARTIFACTS_PATH, "ai_detection", "ai_config.pkl")
+
+            missing = [p for p in [word_path, char_path, clf_path, config_path] if not os.path.exists(p)]
+            if missing:
+                self._load_error = f"Missing model files: {missing}"
+                print(f"[AIDetection] WARNING: {self._load_error}")
+                return
+
+            self._word_vec = joblib.load(word_path)
+            self._char_vec = joblib.load(char_path)
+            self._clf = joblib.load(clf_path)
+            self._config = joblib.load(config_path)
+            self._threshold = self._config.get("threshold_optimal", 0.5)
+            self._loaded = True
+            print(f"[AIDetection] Model loaded. Accuracy: {self._config.get('accuracy', 0.0):.4f}, Threshold: {self._threshold:.4f}")
+        except Exception as e:
+            self._load_error = str(e)
+            print(f"[AIDetection] ERROR loading model: {e}")
+
+    @property
+    def is_available(self) -> bool:
+        return self._loaded
+
+    def _preprocess(self, text: str) -> str:
+        text = str(text).lower()
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    def _extract_stylometry(self, text: str) -> np.ndarray:
+        text_str = str(text)
+        text_lower = text_str.lower()
+        words = text_str.split()
+        total_words = len(words)
+        total_chars = len(text_str)
+
+        markers = self._config.get("chatgpt_markers", []) if self._config else []
+
+        if total_words == 0:
+            return np.zeros(len(markers) + 7)
+
+        # 1. Lexical Diversity (Type-Token Ratio)
+        unique_words = len(set(w.lower() for w in words))
+        ttr = unique_words / total_words
+
+        # 2. Word Length Stats
+        word_lengths = [len(w) for w in words]
+        avg_word_len = sum(word_lengths) / total_words
+
+        # 3. Sentence Length Stats
+        sentences = re.split(r'[.!?]+', text_str)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        num_sentences = max(len(sentences), 1)
+        avg_sent_len = total_words / num_sentences
+
+        # 4. Punctuation rates
+        comma_rate = text_str.count(',') / max(total_chars, 1)
+        period_rate = text_str.count('.') / max(total_chars, 1)
+        question_rate = text_str.count('?') / max(total_chars, 1)
+
+        # 5. Capital letters rate
+        cap_rate = sum(1 for c in text_str if c.isupper()) / max(total_chars, 1)
+
+        # 6. ChatGPT transition word markers
+        marker_features = []
+        for marker in markers:
+            count = len(re.findall(marker, text_lower))
+            marker_features.append(count / total_words)
+
+        return np.array([
+            ttr, avg_word_len, avg_sent_len, comma_rate, period_rate, question_rate, cap_rate
+        ] + marker_features)
+
+    def detect(self, text: str) -> dict:
+        if not self._loaded:
+            raise ValueError(f"AI Detection model is not loaded: {self._load_error}")
+
+        word_count = len(str(text).split())
+        char_count = len(str(text))
+
+        # Extract features
+        cleaned = self._preprocess(text)
+        X_word = self._word_vec.transform([cleaned]).toarray()
+        X_char = self._char_vec.transform([cleaned]).toarray()
+        sty = self._extract_stylometry(text) # Use original text for sentence splits
+
+        # Combine
+        X_combined = np.hstack([X_word, X_char, [sty]])
+
+        # Predict
+        prob = float(self._clf.predict_proba(X_combined)[0][1])
+        is_ai = bool(prob >= self._threshold)
+
+        # Prepare metrics breakdown
+        transition_word_rate = sum(sty[7:]) # Sum of all transition word rates
+
+        return {
+            "is_ai": is_ai,
+            "ai_probability": round(prob * 100, 2),
+            "word_count": word_count,
+            "char_count": char_count,
+            "metrics": {
+                "lexical_diversity_ttr": round(float(sty[0]), 4),
+                "avg_word_length": round(float(sty[1]), 2),
+                "avg_sentence_length": round(float(sty[2]), 2),
+                "punctuation_rate": round(float(sty[3] + sty[4] + sty[5]) * 1000, 2), # commas + periods + questions rate per 1000 chars
+                "transition_word_rate": round(float(transition_word_rate) * 100, 2) # percent of words
+            }
+        }
+
+
