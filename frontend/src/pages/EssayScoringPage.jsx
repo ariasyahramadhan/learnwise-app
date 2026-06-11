@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Edit, Clipboard, Sliders, ArrowLeft, Trash, Close } from "../components/Icons";
+import { Edit, Clipboard, Sliders, ArrowLeft, Trash, CloudUpload } from "../components/Icons";
 import "./EssayScoringPage.css";
 
 export default function EssayScoringPage() {
@@ -7,6 +7,8 @@ export default function EssayScoringPage() {
   const [referenceAnswer, setReferenceAnswer] = useState("");
   const [studentAnswers, setStudentAnswers] = useState([""]); // Array of student responses
   const [isScoring, setIsScoring] = useState(false);
+  const [isParsing, setIsParsing] = useState(false); // File parsing state
+  const [showFormatGuide, setShowFormatGuide] = useState(false); // Toggle format instructions
   const [scoreResults, setScoreResults] = useState(null); // Will store list of result objects
   const [expandedIndex, setExpandedIndex] = useState(null); // Track expanded accordion card
   const [error, setError] = useState(null);
@@ -28,6 +30,50 @@ export default function EssayScoringPage() {
     const updated = [...studentAnswers];
     updated[index] = value;
     setStudentAnswers(updated);
+  };
+
+  // Handle Document Upload and Parsing
+  const handleDocUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Check extension
+    const allowedExtensions = [".pdf", ".docx", ".txt"];
+    const fileExtension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      setError("Format file tidak didukung. Hanya PDF, DOCX, dan TXT.");
+      return;
+    }
+
+    setIsParsing(true);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/parse-essay-document", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Gagal mengurai dokumen.");
+      }
+
+      const data = await response.json();
+      setQuestion(data.question);
+      setReferenceAnswer(data.reference_answer);
+      setStudentAnswers(data.student_answers);
+    } catch (err) {
+      setError(err.message || "Gagal mengunggah dan memproses dokumen.");
+    } finally {
+      setIsParsing(false);
+      // Reset input value so same file can be uploaded again
+      e.target.value = "";
+    }
   };
 
   const handleScoreEssay = async (e) => {
@@ -91,7 +137,6 @@ export default function EssayScoringPage() {
     setError(null);
   };
 
-  // Helper to determine the score color theme (without grade letters/predicates)
   const getScoreColor = (score) => {
     if (score >= 85) return "var(--success)";
     if (score >= 70) return "var(--info)";
@@ -126,25 +171,73 @@ export default function EssayScoringPage() {
 
       {!scoreResults ? (
         <form className="scoring-form" onSubmit={handleScoreEssay}>
-          {/* Question / Prompt card (Full width) */}
-          <div className="input-card question-card">
-            <label className="input-label">
-              <Clipboard size={16} style={{ color: "var(--primary)" }} />
-              <span>Soal / Pertanyaan (Pertanyaan Esai - Opsional)</span>
-            </label>
-            <textarea
-              className="scoring-textarea question-textarea"
-              placeholder="Masukkan teks soal atau petunjuk esai di sini sebagai konteks..."
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              maxLength={2000}
-              disabled={isScoring}
-              style={{ minHeight: "80px" }}
-            />
+          
+          {/* File Upload Actions Bar */}
+          <div className="upload-guide-section">
+            <div className="upload-actions-bar">
+              <label className={`btn-upload-doc ${isParsing ? "loading" : ""}`}>
+                <CloudUpload size={16} />
+                <span>{isParsing ? "Sedang Mengurai Dokumen..." : "Upload Dokumen Soal & Jawaban"}</span>
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  onChange={handleDocUpload}
+                  style={{ display: "none" }}
+                  disabled={isParsing || isScoring}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn-toggle-guide"
+                onClick={() => setShowFormatGuide(!showFormatGuide)}
+              >
+                {showFormatGuide ? "Sembunyikan Petunjuk Format" : "Petunjuk Format Dokumen"}
+              </button>
+            </div>
+
+            {showFormatGuide && (
+              <div className="format-guide-card">
+                <h4>💡 Petunjuk Format Dokumen untuk Pemetaan Otomatis</h4>
+                <p>Agar teks di dalam file <strong>(.pdf, .docx, .txt)</strong> Anda otomatis dipetakan ke kolom Soal, Kunci Jawaban, dan Daftar Jawaban Siswa secara tepat, susunlah tulisan dokumen Anda menggunakan label penanda berikut:</p>
+                <pre className="format-example-code">
+{`Soal: [Masukkan teks soal esai di sini]
+
+Kunci Jawaban: [Masukkan teks kunci jawaban di sini]
+
+Jawaban Siswa 1: [Jawaban dari siswa pertama]
+
+Jawaban Siswa 2: [Jawaban dari siswa kedua]
+
+Jawaban Siswa 3: [Jawaban dari siswa ketiga]`}
+                </pre>
+                <p className="format-guide-note">
+                  * Catatan: Sistem memindai pola kata secara fleksibel, sehingga Anda bisa menulis <code>Soal:</code>, <code>Kunci Jawaban:</code>, atau <code>Jawaban 1:</code> tanpa mempermasalahkan huruf besar/kecil.
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="input-columns-layout">
-            {/* Left Column: Reference Answer */}
+          {/* Staged Inputs Stack (Vertical Full-Width Layout) */}
+          <div className="scoring-inputs-stack">
+            
+            {/* 1. Soal / Pertanyaan */}
+            <div className="input-card question-card">
+              <label className="input-label">
+                <Clipboard size={16} style={{ color: "var(--primary)" }} />
+                <span>Soal / Pertanyaan (Pertanyaan Esai - Opsional)</span>
+              </label>
+              <textarea
+                className="scoring-textarea question-textarea"
+                placeholder="Masukkan teks soal atau petunjuk esai di sini sebagai konteks..."
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                maxLength={2000}
+                disabled={isScoring}
+                style={{ minHeight: "80px" }}
+              />
+            </div>
+
+            {/* 2. Kunci Jawaban */}
             <div className="input-card reference-card">
               <label className="input-label">
                 <Clipboard size={16} style={{ color: "var(--primary)" }} />
@@ -157,14 +250,14 @@ export default function EssayScoringPage() {
                 onChange={(e) => setReferenceAnswer(e.target.value)}
                 maxLength={5000}
                 disabled={isScoring}
-                style={{ minHeight: "320px" }}
+                style={{ minHeight: "150px" }}
               />
               <div className="char-counter">
                 {referenceAnswer.length} / 5000 karakter
               </div>
             </div>
 
-            {/* Right Column: Multiple Student Answers */}
+            {/* 3. Multiple Student Answers */}
             <div className="answers-stack-container">
               <div className="answers-stack-header">
                 <label className="input-label">
@@ -176,7 +269,7 @@ export default function EssayScoringPage() {
                 </span>
               </div>
 
-              <div className="answers-scroll-area">
+              <div className="answers-scroll-area-full">
                 {studentAnswers.map((answer, index) => (
                   <div key={index} className="input-card student-answer-card">
                     <div className="student-card-header">
@@ -200,7 +293,7 @@ export default function EssayScoringPage() {
                       onChange={(e) => handleAnswerChange(index, e.target.value)}
                       maxLength={5000}
                       disabled={isScoring}
-                      style={{ minHeight: "130px" }}
+                      style={{ minHeight: "100px" }}
                     />
                     <div className="char-counter">
                       {answer.length} / 5000 karakter
@@ -223,7 +316,7 @@ export default function EssayScoringPage() {
           <button
             type="submit"
             className={`btn-score ${isScoring ? "loading" : ""}`}
-            disabled={isScoring || !referenceAnswer.trim() || studentAnswers.some((ans) => !ans.trim())}
+            disabled={isScoring || isParsing || !referenceAnswer.trim() || studentAnswers.some((ans) => !ans.trim())}
           >
             {isScoring ? (
               <>

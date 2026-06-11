@@ -814,3 +814,90 @@ class EssayScoringService:
             }
         }
 
+    @staticmethod
+    def parse_document_content(text: str) -> dict:
+        """
+        Parses raw text from a document to extract Soal, Kunci Jawaban, and Student Answers.
+        """
+        lines = text.splitlines()
+
+        question = ""
+        reference = ""
+        students = []
+
+        current_section = None
+        current_content = []
+
+        soal_pattern = re.compile(r'^(soal|pertanyaan|prompt)\s*:\s*(.*)$', re.IGNORECASE)
+        kunci_pattern = re.compile(r'^(kunci\s*jawaban|kunci|jawaban\s*referensi|reference\s*answer|reference)\s*:\s*(.*)$', re.IGNORECASE)
+        siswa_pattern = re.compile(r'^(jawaban\s*siswa\s*#?\d*|jawaban\s*#?\d*|siswa\s*#?\d*|student\s*answer\s*#?\d*)\s*:\s*(.*)$', re.IGNORECASE)
+
+        for line in lines:
+            line_strip = line.strip()
+            if not line_strip:
+                if current_section:
+                    current_content.append(line)
+                continue
+
+            m_soal = soal_pattern.match(line_strip)
+            m_kunci = kunci_pattern.match(line_strip)
+            m_siswa = siswa_pattern.match(line_strip)
+
+            if m_soal:
+                if current_section == 'soal':
+                    question = "\n".join(current_content).strip()
+                elif current_section == 'kunci':
+                    reference = "\n".join(current_content).strip()
+                elif current_section == 'siswa':
+                    students.append("\n".join(current_content).strip())
+
+                current_section = 'soal'
+                current_content = [m_soal.group(2)]
+            elif m_kunci:
+                if current_section == 'soal':
+                    question = "\n".join(current_content).strip()
+                elif current_section == 'kunci':
+                    reference = "\n".join(current_content).strip()
+                elif current_section == 'siswa':
+                    students.append("\n".join(current_content).strip())
+
+                current_section = 'kunci'
+                current_content = [m_kunci.group(2)]
+            elif m_siswa:
+                if current_section == 'soal':
+                    question = "\n".join(current_content).strip()
+                elif current_section == 'kunci':
+                    reference = "\n".join(current_content).strip()
+                elif current_section == 'siswa':
+                    students.append("\n".join(current_content).strip())
+
+                current_section = 'siswa'
+                current_content = [m_siswa.group(2)]
+            else:
+                if current_section:
+                    current_content.append(line)
+                else:
+                    current_section = 'soal'
+                    current_content = [line]
+
+        # Save last section
+        if current_section == 'soal':
+            question = "\n".join(current_content).strip()
+        elif current_section == 'kunci':
+            reference = "\n".join(current_content).strip()
+        elif current_section == 'siswa':
+            students.append("\n".join(current_content).strip())
+
+        # Cleanup list
+        # Filter out any purely whitespace student answers from the list
+        students = [s.strip() for s in students if s.strip()]
+        if not students:
+            students = [""]
+
+        return {
+            "question": question,
+            "reference_answer": reference,
+            "student_answers": students
+        }
+
+

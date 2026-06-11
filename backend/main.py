@@ -142,5 +142,45 @@ async def analyze_documents(
         raise HTTPException(status_code=500, detail="Terjadi kesalahan saat menganalisis dokumen. Pastikan semua file dapat dibaca.")
 
 
+@app.post("/api/parse-essay-document")
+async def parse_essay_document(file: UploadFile = File(...)):
+    allowed_types = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain"
+    ]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File '{file.filename}' tidak didukung. Hanya PDF, DOCX, dan TXT."
+        )
+
+    try:
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{file.filename}' melebihi ukuran maksimal {MAX_FILE_SIZE // (1024 * 1024)}MB."
+            )
+
+        # Gunakan extractor dari plagiarism_service
+        text = plagiarism_service.extractor.extract(content, file.content_type)
+        if not text or not text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Dokumen tidak berisi teks yang dapat dibaca."
+            )
+
+        parsed_data = EssayScoringService.parse_document_content(text)
+        return parsed_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Document parsing error: {e}")
+        raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat mengekstrak dokumen: {str(e)}")
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
