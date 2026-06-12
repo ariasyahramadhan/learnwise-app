@@ -28,6 +28,7 @@ function calculateJaccardSimilarity(sentA, sentB) {
 
 export default function CompareModal({ pair, onClose, documents }) {
   const [hoveredPairId, setHoveredPairId] = useState(null);
+  const [selectedPairId, setSelectedPairId] = useState(null);
 
   const docA = useMemo(() => documents.find(d => d.name === pair.doc_a), [documents, pair]);
   const docB = useMemo(() => documents.find(d => d.name === pair.doc_b), [documents, pair]);
@@ -79,6 +80,15 @@ export default function CompareModal({ pair, onClose, documents }) {
     setHoveredPairId(null);
   };
 
+  const handleSentenceClick = (targetDoc, partnerIdx, pairId) => {
+    setSelectedPairId(pairId);
+    const elementId = `doc-${targetDoc}-sent-${partnerIdx}`;
+    const element = document.getElementById(elementId);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
   return (
     <div className="compare-overlay" onClick={onClose}>
       <div className="compare-container" onClick={(e) => e.stopPropagation()}>
@@ -116,20 +126,25 @@ export default function CompareModal({ pair, onClose, documents }) {
             <div className="pane-content">
               {sentencesA.map((sentence, i) => {
                 const match = matchesA[i];
+                const isActive = hoveredPairId 
+                  ? (match && match.pairId === hoveredPairId) 
+                  : (match && match.pairId === selectedPairId);
+                
                 if (match) {
-                  const isActive = match.pairId === hoveredPairId;
                   return (
                     <span
                       key={i}
+                      id={`doc-a-sent-${i}`}
                       className={`sentence-highlight ${isActive ? "active" : ""}`}
                       onMouseEnter={() => handleMouseEnter(match.pairId)}
                       onMouseLeave={handleMouseLeave}
+                      onClick={() => handleSentenceClick("b", match.partner, match.pairId)}
                     >
                       {sentence}{" "}
                     </span>
                   );
                 }
-                return <span key={i} className="sentence-text">{sentence} </span>;
+                return <span key={i} id={`doc-a-sent-${i}`} className="sentence-text">{sentence} </span>;
               })}
             </div>
           </div>
@@ -143,20 +158,25 @@ export default function CompareModal({ pair, onClose, documents }) {
             <div className="pane-content">
               {sentencesB.map((sentence, i) => {
                 const match = matchesB[i];
+                const isActive = hoveredPairId 
+                  ? (match && match.pairId === hoveredPairId) 
+                  : (match && match.pairId === selectedPairId);
+                
                 if (match) {
-                  const isActive = match.pairId === hoveredPairId;
                   return (
                     <span
                       key={i}
+                      id={`doc-b-sent-${i}`}
                       className={`sentence-highlight ${isActive ? "active" : ""}`}
                       onMouseEnter={() => handleMouseEnter(match.pairId)}
                       onMouseLeave={handleMouseLeave}
+                      onClick={() => handleSentenceClick("a", match.partner, match.pairId)}
                     >
                       {sentence}{" "}
                     </span>
                   );
                 }
-                return <span key={i} className="sentence-text">{sentence} </span>;
+                return <span key={i} id={`doc-b-sent-${i}`} className="sentence-text">{sentence} </span>;
               })}
             </div>
           </div>
@@ -165,3 +185,4 @@ export default function CompareModal({ pair, onClose, documents }) {
     </div>
   );
 }
+

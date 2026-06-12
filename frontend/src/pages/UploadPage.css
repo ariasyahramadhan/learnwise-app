@@ -477,7 +477,7 @@
 .weight-display-left, .weight-display-right {
   font-size: 0.825rem;
   color: var(--text-dim, #718096);
-  width: 175px;
+  width: 190px;
   font-weight: 600;
 }
 
