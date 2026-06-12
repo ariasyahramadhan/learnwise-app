@@ -26,14 +26,27 @@ if __name__ == '__main__':
 
     def load_paws(split_name):
         url = BASE_URL + split_name
-        print(f"  Mengunduh {split_name} ...")
+        print(f"  Mengunduh dan merestrukturisasi {split_name} ...")
         with urllib.request.urlopen(url) as response:
             content = response.read().decode('utf-8')
         df = pd.read_csv(io.StringIO(content), sep='\t')
         if 'label' in df.columns:
             df['label'] = pd.to_numeric(df['label'], errors='coerce').fillna(-1).astype(int)
         df = df[df['label'].isin([0, 1])].reset_index(drop=True)
-        return df[['sentence1', 'sentence2', 'label']]
+        
+        # Pisahkan label 0 dan 1
+        df_pos = df[df['label'] == 1].copy()
+        df_neg = df[df['label'] == 0].copy()
+        
+        # Shuffle sentence2 untuk label 0 agar topiknya berbeda secara acak
+        if len(df_neg) > 1:
+            np.random.seed(42)
+            shuffled_s2 = df_neg['sentence2'].sample(frac=1, random_state=42).reset_index(drop=True)
+            df_neg['sentence2'] = shuffled_s2.values
+            
+        df_restructured = pd.concat([df_pos, df_neg], ignore_index=True)
+        return df_restructured[['sentence1', 'sentence2', 'label']]
+
 
     print("Mengunduh dataset PAWS-Indonesia...")
     df_paws_train = load_paws("train.tsv")
@@ -54,7 +67,7 @@ if __name__ == '__main__':
         ("Teknologi kecerdasan buatan telah mengubah cara manusia bekerja dan berinteraksi satu sama lain di era digital.", "Kecerdasan buatan sebagai teknologi modern telah mengubah cara manusia bekerja dan berinteraksi dalam kehidupan sehari-hari.", 1),
         ("Sistem imun manusia melibatkan berbagai sel dan molekul yang bekerja bersama untuk melawan infeksi penyakit.", "Imunitas tubuh manusia melibatkan berbagai jenis sel dan molekul yang bekerja bersama dalam melawan penyakit.", 1),
         ("Keanekaragaman hayati Indonesia termasuk yang tertinggi di dunia berkat posisi geografisnya di khatulistiwa.", "Indonesia memiliki keanekaragaman hayati yang sangat tinggi karena letaknya yang berada di wilayah khatulistiwa.", 1),
-        ("Globalisasi membawa dampak positif berupa kemudahan akses informasi dan pertumbuhan ekonomi yang pesat.", "Dampak positif globalisasi antara lain kemudahan dalam mengakses informasi and pertumbuhan di sektor ekonomi.", 1),
+        ("Globalisasi membawa dampak positif berupa kemudahan akses informasi dan pertumbuhan ekonomi yang pesat.", "Dampak positif globalisasi antara lain kemudahan dalam mengakses informasi dan pertumbuhan di sektor ekonomi.", 1),
         ("Hak asasi manusia adalah hak dasar yang dimiliki setiap individu tanpa memandang ras atau agama apapun.", "Hak asasi manusia merupakan hak dasar yang melekat pada setiap individu tanpa membedakan ras maupun agama.", 1),
         ("Literasi digital penting dikuasai generasi muda di era teknologi informasi yang terus berkembang pesat.", "Penguasaan literasi digital sangat penting bagi generasi muda di era perkembangan teknologi informasi saat ini.", 1),
         ("Kurikulum pendidikan Indonesia telah mengalami berbagai perubahan sejak kemerdekaan untuk menyesuaikan kebutuhan.", "Kurikulum pendidikan di Indonesia sudah mengalami banyak perubahan sejak Indonesia merdeka hingga saat ini.", 1),
