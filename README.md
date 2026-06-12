@@ -32,6 +32,14 @@ LearnWise PlagiScan adalah aplikasi deteksi plagiarisme dokumen berbasis web yan
 6. **Visualisasi Posisi Dokumen 2D:**
    - Memetakan dokumen ke dalam grafik koordinat 2D menggunakan embedding **SBERT** (`paraphrase-multilingual-MiniLM-L12-v2`) yang direduksi dimensinya menggunakan algoritma **UMAP** atau **PCA** (untuk dokumen < 5). Dokumen yang berdekatan pada plot mengindikasikan kemiripan topik/makna.
 
+7. **Penilaian Esai Otomatis (Essay Scoring):**
+   - Menilai jawaban esai siswa secara objektif (skor 0-100) berdasarkan kunci jawaban acuan menggunakan model **Gradient Boosting Regressor** dan representasi **SBERT + metrik leksikal**.
+   - Fitur penilaian mencakup: Cosine Similarity semantik (SBERT), kecocokan kata kunci (*keyword overlap*), kecocokan urutan kalimat (*sequence similarity*), serta analisis rasio panjang jawaban.
+
+8. **Deteksi Tulisan AI (AI Writing Detection):**
+   - Mendeteksi apakah suatu teks ditulis oleh manusia atau dihasilkan oleh kecerdasan buatan (seperti ChatGPT/LLM) menggunakan model **XGBoost Classifier**.
+   - Fitur mencakup: Analisis keragaman kosa kata (*Lexical Diversity/TTR*), statistik panjang kata & kalimat, frekuensi tanda baca, serta kepadatan penggunaan kata transisi khas AI (*ChatGPT transition markers*).
+
 ---
 
 ## 🛠️ Stack Teknologi
@@ -39,7 +47,7 @@ LearnWise PlagiScan adalah aplikasi deteksi plagiarisme dokumen berbasis web yan
 | Layer | Teknologi |
 |-------|-----------|
 | **Backend** | FastAPI, Uvicorn, Python 3.10+ |
-| **Machine Learning** | XGBoost Classifier, Scikit-learn, PySastrawi (opsional) |
+| **Machine Learning** | XGBoost Classifier, Gradient Boosting Regressor, Scikit-learn, PySastrawi (opsional) |
 | **Representasi Teks** | Sentence-Transformers (SBERT), TF-IDF (Word & Char) |
 | **Reduksi Dimensi** | UMAP, PCA (sklearn) |
 | **Parsing File** | pdfplumber (PDF), python-docx (DOCX) |
@@ -63,9 +71,17 @@ plagiarism-detector/
 │       │   ├── surface_char_vectorizer.pkl
 │       │   ├── surface_classifier.pkl
 │       │   └── surface_config.pkl
-│       └── sbert_similarity/            # Artefak Model B Baru
-│           ├── sbert_classifier.pkl
-│           └── sbert_config.pkl
+│       ├── sbert_similarity/            # Artefak Model B Baru
+│       │   ├── sbert_classifier.pkl
+│       │   └── sbert_config.pkl
+│       ├── essay_scoring/               # Artefak Model Penilaian Esai
+│       │   ├── scoring_model.pkl
+│       │   └── scaler.pkl
+│       └── ai_detection/                # Artefak Model Deteksi AI
+│           ├── ai_word_vectorizer.pkl
+│           ├── ai_char_vectorizer.pkl
+│           ├── ai_classifier.pkl
+│           └── ai_config.pkl
 ├── frontend/
 │   ├── index.html
 │   ├── package.json
@@ -92,10 +108,13 @@ plagiarism-detector/
 ├── notebooks/                           # Dokumentasi & Log Pelatihan Model
 │   ├── surface_similarity_training.ipynb      # Notebook training Model A (Surface)
 │   ├── sbert_similarity_training.ipynb        # Notebook training Model B (SBERT Semantic)
+│   ├── ai_detection_training.ipynb            # Notebook training Model Deteksi AI
 │   ├── archive/                         # Versi notebook Model A lama (ver1 - ver7)
 │   ├── plots/                           # Grafik visualisasi hasil training (ROC, Confusion Matrix, dll.)
 │   └── src/                             # Script pelatihan Python standalone
-│       └── Model_A_ver8_optimized.py
+│       ├── Model_A_ver8_optimized.py
+│       ├── train_sbert_similarity.py
+│       └── train_ai_detection.py
 ├── .gitignore                           # Konfigurasi pengecualian Git
 └── README.md                            # Dokumentasi sistem
 ```
