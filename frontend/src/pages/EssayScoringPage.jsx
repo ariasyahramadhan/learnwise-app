@@ -97,6 +97,7 @@ export default function EssayScoringPage() {
     setScoreResults(null);
     setExpandedIndex(null);
     try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
       const response = await fetch(`${API_URL}/api/score-essay`, {
         method: "POST",
         headers: {
