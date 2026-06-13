@@ -10,8 +10,6 @@ import docx
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import PCA
-import umap
-
 
 class TextExtractor:
     """Ekstrak teks dari berbagai format file"""
@@ -638,22 +636,14 @@ class PlagiarismService:
 
     def _reduce_dimensions(self, embeddings: np.ndarray) -> List[Dict]:
         n = len(embeddings)
-
-        if n <= 2:
+        
+        if n == 1:
+            coords = np.array([[0.0, 0.0]])
+        elif n == 2:
             coords = np.array([[0.0, 0.0], [1.0, 0.0]])
-            if n == 1:
-                coords = np.array([[0.0, 0.0]])
-        elif n <= 4:
+        else:
             pca = PCA(n_components=2)
             coords = pca.fit_transform(embeddings)
-        else:
-            reducer = umap.UMAP(
-                n_components=2,
-                n_neighbors=min(n - 1, 15),
-                min_dist=0.3,
-                random_state=42
-            )
-            coords = reducer.fit_transform(embeddings)
 
         for dim in range(coords.shape[1]):
             col = coords[:, dim]
