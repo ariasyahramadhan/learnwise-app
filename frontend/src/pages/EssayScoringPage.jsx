@@ -53,7 +53,7 @@ export default function EssayScoringPage() {
     formData.append("file", file);
 
     try {
-      const response = await fetch("${API_URL}/api/parse-essay-document", {
+      const response = await fetch(`${API_URL}/api/parse-essay-document`, {
         method: "POST",
         body: formData,
       });
@@ -96,9 +96,8 @@ export default function EssayScoringPage() {
     setError(null);
     setScoreResults(null);
     setExpandedIndex(null);
-
     try {
-      const response = await fetch("http://localhost:8000/api/score-essay", {
+      const response = await fetch(`${API_URL}/api/score-essay`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
