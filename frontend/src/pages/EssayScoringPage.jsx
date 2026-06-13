@@ -12,7 +12,7 @@ export default function EssayScoringPage() {
   const [scoreResults, setScoreResults] = useState(null); // Will store list of result objects
   const [expandedIndex, setExpandedIndex] = useState(null); // Track expanded accordion card
   const [error, setError] = useState(null);
-
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   // Add a new empty student answer input field
   const handleAddAnswer = () => {
     setStudentAnswers([...studentAnswers, ""]);
@@ -53,7 +53,7 @@ export default function EssayScoringPage() {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://localhost:8000/api/parse-essay-document", {
+      const response = await fetch("${API_URL}/api/parse-essay-document", {
         method: "POST",
         body: formData,
       });

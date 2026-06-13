@@ -17,7 +17,9 @@ export default function ResultPage({ result, onReset }) {
   const { summary, documents, pairs, model } = result;
   const modelInfo = MODEL_LABELS[model] || MODEL_LABELS.model_a;
   const ModelIcon = modelInfo.icon;
-
+  
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  
   const riskLevel = (val) => {
     if (val >= 80) return "high";
     if (val >= 50) return "medium";

@@ -10,7 +10,9 @@ export default function AIDetectionPage() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
-  
+
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
   const fileInputRef = useRef(null);
 
   const handleReset = () => {
@@ -96,7 +98,7 @@ export default function AIDetectionPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:8000/api/detect-ai", {
+        const response = await fetch(`${API_URL}/api/detect-ai`, {
         method: "POST",
         body: formData,
       });
