@@ -9,6 +9,8 @@
     "is_short",
     "is_blank"
   ],
+  "numpy_version": "1.26.4",
+  "sklearn_version": "1.7.1",
   "metrics": {
     "rmse": 0.16465,
     "mae": 0.11695,
