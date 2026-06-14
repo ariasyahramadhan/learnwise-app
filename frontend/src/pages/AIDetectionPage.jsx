@@ -11,7 +11,9 @@ export default function AIDetectionPage() {
   const [error, setError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const API_URL = import.meta.env.VITE_AI_DETECTION_API_URL 
+             || import.meta.env.VITE_API_URL 
+             || "http://localhost:8001";
 
   const fileInputRef = useRef(null);
 
