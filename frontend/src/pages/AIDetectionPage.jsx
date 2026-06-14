@@ -100,7 +100,7 @@ export default function AIDetectionPage() {
     }
 
     try {
-        const response = await fetch(`${API_URL}/api/detect-ai`, {
+        const response = await fetch(`${API_URL}api/detect-ai`, {
         method: "POST",
         body: formData,
       });
